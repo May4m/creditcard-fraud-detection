@@ -52,8 +52,6 @@ def load_dataset(filename="creditcard.csv", n_duplicates=3, split_ratio=0.2):
     y_test = y_test[X_test.index]
 
 
-    
-
     return {'x-train': X_train, 'y-train': y_train, 'x-test': X_test, 'y-test': y_test, 'zero-class': zero}
 
 
