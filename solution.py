@@ -12,13 +12,6 @@ from sklearn.model_selection import train_test_split, KFold
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 from sklearn.preprocessing import StandardScaler
 
-def pca_transform(X, n=14):
-    """
-    applies PCA to reduce dimensions
-    """
-    pca = PCA(n_components=n)
-    
-    return pca.fit_transform(X)
 
 
 def load_dataset(filename="creditcard.csv", n_duplicates=2, split_ratio=0.2):
