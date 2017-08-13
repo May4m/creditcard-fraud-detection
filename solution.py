@@ -14,7 +14,7 @@ from sklearn.preprocessing import StandardScaler
 
 
 
-def load_dataset(filename="creditcard.csv", n_duplicates=3, split_ratio=0.2):
+def load_dataset(filename="creditcard.csv", n_duplicates=10, split_ratio=0.2):
     """
     interface function to load the dataset and perform cross-validation splitting
     """
@@ -93,4 +93,4 @@ def model(dataset):
     accaracy_measures(ran_forest, dataset)
 
 
-model(load_dataset(split_ratio=0.3))
+model(load_dataset(split_ratio=0.2))
