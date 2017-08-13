@@ -1,44 +1,96 @@
 
+import math
 
 import pandas as pd
 import numpy as np
 
+from sklearn.decomposition import KernelPCA, PCA
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, KFold
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
+from sklearn.preprocessing import StandardScaler
+
+def pca_transform(X, n=14):
+    """
+    applies PCA to reduce dimensions
+    """
+    pca = PCA(n_components=n)
+    
+    return pca.fit_transform(X)
 
 
-pd.set_option('display.width', 210)
-
-def load_dataset(filename="creditcard.csv", split_ratio=):
+def load_dataset(filename="creditcard.csv", n_duplicates=2, split_ratio=0.2):
     """
     interface function to load the dataset and perform cross-validation splitting
     """
-    dataset = pd.read_csv(filename)
+
+    # HDFS is a faster when reading
+    try:
+        dataset = pd.read_hdf('creditcard.h5', 'creditcard')
+    except:
+        dataset = pd.read_csv('creditcard.csv')
+
+    # try saving to hdfs
     try:
         store = pd.HDFStore('creditcard.h5')
         store['creditcard'] = dataset
     except:
-        print("[WARNING] could not save to hdfs")
+        print("[ WARNING ] could not save to HDFS format")
 
-    features_labels = ['V%i' % i for i in range(1, 21)]
-    features = dataset[features_labels]
+    # preprocessing
+    dataset['norm_amount'] = StandardScaler().fit_transform(dataset['Amount'].values.reshape(-1, 1))
+    dataset = dataset.drop(['Time','Amount'], axis=1)
+    dataset = dataset.append(n_duplicates * [dataset[dataset['Class'] == 1]], ignore_index=True)
+
+
+
+    
+    features = dataset.ix[:, dataset.columns != 'Class']
     classes = dataset['Class']
+
+    zero = dataset[classes == 0]
 
     # cross-validation
     X_train, X_test, y_train, y_test = train_test_split(features, classes, test_size=split_ratio, random_state=0)
 
-    return {'x-train': X_train, 'y-train': y_train, 'x-test': X_test, 'y-test': y_test}
+    return {'x-train': X_train, 'y-train': y_train, 'x-test': X_test, 'y-test': y_test, 'zero-class': zero}
+
+
+def accaracy_measures(model, dataset):
+    """
+    prints common accurary measures of the model
+    """
+
+    predicted_y, true_y = model.predict(dataset['x-test']), dataset['y-test']
+
+    print "****************%s***************" % str(model).rpartition('(')[0]
+
+    print "score: ", model.score(
+                        dataset['x-test'],
+                        dataset['y-test'])
+    
+    # confusion matrix
+    print "[Tn: %s] [Fp: %s] [Fn: %s] [Tp: %s]" % tuple(confusion_matrix(true_y, predicted_y).ravel())
+
+    # precision recall
+    print "precision: %s  recall: %s  f1-score: %s" % (precision_score(true_y, predicted_y), recall_score(true_y, predicted_y), f1_score(true_y, predicted_y))
+    print "------------------------------------------------\n"
+
 
 
 def model(dataset):
     """
+    random forest model
     """
-    log_reg = LogisticRegression(C=0.1, penalty='l1', tol=0.01)
-    log_reg.fit(dataset['x-train'], dataset['y-train'])
 
-    print log_reg.score(
-        dataset['x-test'],
-        dataset['y-test'])
+    # random forest classifiers
+    ran_forest = RandomForestClassifier(n_estimators=200, n_jobs=-1)
+    ran_forest.fit(dataset['x-train'], dataset['y-train'])
 
-ds = load_dataset()
-model(ds)
+
+    accaracy_measures(ran_forest, dataset)
+
+
+model(load_dataset(split_ratio=0.3))
