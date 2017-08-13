@@ -18,19 +18,22 @@ def load_dataset(filename="creditcard.csv", n_duplicates=3, split_ratio=0.2):
     """
     interface function to load the dataset and perform cross-validation splitting
     """
-
+    h5 = False
     # HDFS is a faster when reading
     try:
         dataset = pd.read_hdf('creditcard.h5', 'creditcard')
+        h5 = True
     except:
+        h5 = False
         dataset = pd.read_csv('creditcard.csv')
 
     # try saving to hdfs
-    try:
-        store = pd.HDFStore('creditcard.h5')
-        store['creditcard'] = dataset
-    except:
-        print("[ WARNING ] could not save to HDFS format")
+    if h5 is False:
+        try:
+            store = pd.HDFStore('creditcard.h5')
+            store['creditcard'] = dataset
+        except:
+            print("[ WARNING ] could not save to HDFS format")
 
     # preprocessing
     dataset['norm_amount'] = StandardScaler().fit_transform(dataset['Amount'].values.reshape(-1, 1))
