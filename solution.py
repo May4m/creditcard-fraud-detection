@@ -14,7 +14,7 @@ from sklearn.preprocessing import StandardScaler
 
 
 
-def load_dataset(filename="creditcard.csv", n_duplicates=2, split_ratio=0.2):
+def load_dataset(filename="creditcard.csv", n_duplicates=3, split_ratio=0.2):
     """
     interface function to load the dataset and perform cross-validation splitting
     """
@@ -35,7 +35,7 @@ def load_dataset(filename="creditcard.csv", n_duplicates=2, split_ratio=0.2):
     # preprocessing
     dataset['norm_amount'] = StandardScaler().fit_transform(dataset['Amount'].values.reshape(-1, 1))
     dataset = dataset.drop(['Time','Amount'], axis=1)
-    dataset = dataset.append(n_duplicates * [dataset[dataset['Class'] == 1]], ignore_index=True)
+    dataset = dataset.append(n_duplicates * [dataset[dataset['Class'] == 1]], ignore_index=True)  # oversampling by duplication
 
 
 
@@ -47,6 +47,12 @@ def load_dataset(filename="creditcard.csv", n_duplicates=2, split_ratio=0.2):
 
     # cross-validation
     X_train, X_test, y_train, y_test = train_test_split(features, classes, test_size=split_ratio, random_state=0)
+    # remove duplicates in test for accuracy metrics
+    X_test = X_test.drop_duplicates()
+    y_test = y_test[X_test.index]
+
+
+    
 
     return {'x-train': X_train, 'y-train': y_train, 'x-test': X_test, 'y-test': y_test, 'zero-class': zero}
 
@@ -79,7 +85,7 @@ def model(dataset):
     """
 
     # random forest classifiers
-    ran_forest = RandomForestClassifier(n_estimators=200, n_jobs=-1)
+    ran_forest = RandomForestClassifier(n_estimators=13, n_jobs=-1)
     ran_forest.fit(dataset['x-train'], dataset['y-train'])
 
 
