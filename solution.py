@@ -13,6 +13,9 @@ from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_
 from sklearn.preprocessing import StandardScaler
 
 
+import visualization as viz
+
+
 def oversample_dataset(dataset, oversample_factor=10):
     """
     applies oversampling by duplicating the minority dataset
@@ -40,7 +43,7 @@ def undersample_dataset(dataset):
 
 
 def load_dataset(filename="creditcard.csv", dataset_split_method='train-test',
-                sampling_method='undersampling', train_test_ratio=None, kfolds=None):
+                sampling_method='undersampling', train_test_ratio=0.5, kfolds=5):
     """
     interface function to load the dataset and perform cross-validation splitting
     """
@@ -74,53 +77,81 @@ def load_dataset(filename="creditcard.csv", dataset_split_method='train-test',
     features = dataset.ix[:, dataset.columns != 'Class']
     classes = dataset['Class']
 
-    # train/test split method
-    if dataset_split_method == 'train-test':
-        X_train, X_test, y_train, y_test = train_test_split(features, classes, test_size=train_test_ratio, random_state=0)
-        # remove duplicates in test for accuracy metrics. only when oversampling is applied
-        if sampling_method == 'oversampling':
-            X_test = X_test.drop_duplicates()
-            y_test = y_test[X_test.index]
-        return {'x-train': X_train, 'y-train': y_train, 'x-test': X_test, 'y-test': y_test}, dataset_split_method
+    X_train, X_test, y_train, y_test = train_test_split(features, classes, test_size=train_test_ratio, random_state=0)
+    dataset_config = {'x-train': X_train, 'y-train': y_train, 'x-test': X_test, 'y-test': y_test}
 
     # kfolds method
     if dataset_split_method == 'kfolds':
-        kfolds = KFold(len(classes), kfolds, shuffle=False) 
-    return {'features': features, 'classes': classes, 'kfolds': kfolds}, dataset_split_method
+        s = KFold(n_splits=2)
+        kfolds = KFold(kfolds, shuffle=True)
+        dataset_config['kfold'] = kfolds
+        return dataset_config, 'kfolds'
+
+    if sampling_method == 'oversampling':
+        dataset_config['x-test'] = X_test.drop_duplicates()
+        dataset_config['y-test'] = y_test[X_test.index]
+    return dataset_config, 'train-test'
 
 
-def accaracy_measures(model, dataset):
-    """
-    prints common accurary measures of the model
-    """
+def accaracy_measures(model, points, conf_mat=False, roc_curve=False):
+    x_plot_area = int(conf_mat) + int(roc_curve) + 1
+    viz.plt.figure()
 
-    predicted_y, true_y = model.predict(dataset['x-test']), dataset['y-test']
+    # visualization confusion matrix
+    if conf_mat:
+        conf_matrix = confusion_matrix(points['y-test'], model.predict(points['x-test']))
+        viz.plt.subplot(1, x_plot_area ,x_plot_area - 1)
+        viz.plot_confusion_matrix(conf_matrix, classes=[0, 1], title='Confusion matrix')
 
-    print "****************%s***************" % str(model).rpartition('(')[0]
-
-    print "score: ", model.score(
-                        dataset['x-test'],
-                        dataset['y-test'])
     
-    # confusion matrix
-    print "[Tn: %s] [Fp: %s] [Fn: %s] [Tp: %s]" % tuple(confusion_matrix(true_y, predicted_y).ravel())
+    # visualize ROC curve
+    if roc_curve:
 
-    # precision recall
-    print "precision: %s  recall: %s  f1-score: %s" % (precision_score(true_y, predicted_y), recall_score(true_y, predicted_y), f1_score(true_y, predicted_y))
-    print "------------------------------------------------\n"
+        y_pred = model.predict(points['x-test'])
+        viz.plt.subplot(1, x_plot_area, x_plot_area - 2)
+        viz.plot_roc_curve(points['y-test'], y_pred)
+    viz.plt.show()
 
 
-
-def model(datainput, split_method):
+def train_on_data(datainput, split_method, model=LogisticRegression(C=0.1, penalty='l1')):
     """
     random forest model
     """
 
-    # random forest classifiers
-    if split_method == "train-test":
-        dataset = datainput
-        ran_forest = RandomForestClassifier(n_estimators=13, n_jobs=-1)
-        ran_forest.fit(dataset['x-train'], dataset['y-train'])
-        accaracy_measures(ran_forest, dataset)
+    # TODO: use multiple modelds for training and evaluation
 
-model(*load_dataset())
+    print "training of ", model
+
+    # when train-split validation method is applied
+    if split_method == "train-test":
+        model.fit(datainput['x-train'], datainput['y-train'])
+        accaracy_measures(model, datainput, conf_mat=True)
+
+    # if kfolds is applied
+    elif split_method == 'kfolds':
+        X_tr, X_te = np.array(datainput['x-train']), np.array(datainput['x-test'])
+        Y_tr, Y_te = np.array(datainput['y-train']), np.array(datainput['y-test'])
+        recall_score_list = []
+        n_iter = 0
+        for train_index, test_index in datainput['kfold'].split(X_tr):
+            model.fit(X_tr[train_index], Y_tr[train_index])
+            # accuracy measures
+            test_y = model.predict(X_tr[test_index])
+            recall_accuracy = recall_score(Y_tr[test_index], test_y)
+            recall_score_list.append(recall_accuracy) 
+            print('Iteration (%s),  recall score = %s' % (n_iter, recall_accuracy))
+            n_iter += 1
+            
+            # logging
+        print 
+        print 'Mean recall score ', np.mean(recall_score_list)
+        print "\n"
+        
+        accaracy_measures(model, datainput, conf_mat=True, roc_curve=True)
+
+
+if __name__ == "__main__":
+    train_on_data(
+        *load_dataset(dataset_split_method='kfolds', sampling_method=None, train_test_ratio=0.3),
+        model=RandomForestClassifier(n_estimators=2, n_jobs=-1)
+    )
