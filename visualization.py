@@ -6,8 +6,25 @@ from sklearn.metrics import confusion_matrix,precision_recall_curve, \
                 auc, roc_auc_score, roc_curve, recall_score, classification_report 
 
 
+def plot_recision_recall(y_true, y_pred):
+    """
+    Plots Recision Vs Recall curve
+    """
+    precision, recall, thresholds = precision_recall_curve(y_true, y_pred)
+    
+    # Plot Precision-Recall curve
+    plt.plot(recall, precision, label='Precision vs Recall')
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.ylim([0.0, 1.05])
+    plt.xlim([0.0, 1.0])
+    plt.title('Precision-Recall example')
+    plt.legend(loc="lower left")
 
 def plot_roc_curve(y_true, y_pred):
+    """
+    Plots the ROC and AUC curve
+    """
 
     fpr, tpr, thresholds = roc_curve(y_true, y_pred)
     roc_auc = auc(fpr, tpr)

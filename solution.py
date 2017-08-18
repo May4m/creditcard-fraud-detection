@@ -1,4 +1,4 @@
-
+import sys
 import math
 
 import pandas as pd
@@ -103,13 +103,11 @@ def accaracy_measures(model, points, conf_mat=False, roc_curve=False):
         viz.plt.subplot(1, x_plot_area ,x_plot_area - 1)
         viz.plot_confusion_matrix(conf_matrix, classes=[0, 1], title='Confusion matrix')
 
-    
     # visualize ROC curve
     if roc_curve:
-
-        y_pred = model.predict(points['x-test'])
         viz.plt.subplot(1, x_plot_area, x_plot_area - 2)
-        viz.plot_roc_curve(points['y-test'], y_pred)
+        viz.plot_roc_curve(points['y-test'], model.predict(points['x-test']))
+    viz.plot_recision_recall(points['y-test'], model.predict(points['x-test']))
     viz.plt.show()
 
 
@@ -147,10 +145,11 @@ def train_on_data(datainput, split_method, model=LogisticRegression(C=0.1, penal
         print 'Mean recall score ', np.mean(recall_score_list)
         print "\n"
         
-        accaracy_measures(model, datainput, conf_mat=True, roc_curve=True)
+        accaracy_measures(model, datainput)
 
 
 if __name__ == "__main__":
+    
     train_on_data(
         *load_dataset(dataset_split_method='kfolds', sampling_method=None, train_test_ratio=0.3),
         model=RandomForestClassifier(n_estimators=2, n_jobs=-1)
