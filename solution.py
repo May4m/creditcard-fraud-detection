@@ -4,16 +4,23 @@ import math
 import pandas as pd
 import numpy as np
 
-from sklearn.decomposition import KernelPCA, PCA
+from sklearn.metrics import roc_curve as ROC_Cruve
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split, KFold
-from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
+from sklearn.decomposition import KernelPCA, PCA
 from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.model_selection import train_test_split, KFold
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
+
 
 
 import visualization as viz
+
+
+x_set = None
+y_set = None
 
 
 def oversample_dataset(dataset, oversample_factor=10):
@@ -21,8 +28,8 @@ def oversample_dataset(dataset, oversample_factor=10):
     applies oversampling by duplicating the minority dataset
     """
 
-    dataset = dataset.append(n_duplicates * [dataset[dataset['Class'] == 1]], ignore_index=True)  # oversampling by duplication
-    return 
+    dataset = dataset.append(oversample_factor * [dataset[dataset['Class'] == 1]], ignore_index=True)  # oversampling by duplication
+    return dataset
 
 
 def undersample_dataset(dataset):
@@ -47,6 +54,9 @@ def load_dataset(filename="creditcard.csv", dataset_split_method='train-test',
     """
     interface function to load the dataset and perform cross-validation splitting
     """
+
+    global x_set, y_set
+
     h5 = False
     # HDFS is a faster when reading
     try:
@@ -67,6 +77,7 @@ def load_dataset(filename="creditcard.csv", dataset_split_method='train-test',
     # preprocessing
     dataset['norm_amount'] = StandardScaler().fit_transform(dataset['Amount'].values.reshape(-1, 1))
     dataset = dataset.drop(['Time','Amount'], axis=1)
+    x_set, y_set = dataset.ix[:, dataset.columns != 'Class'].copy(True), dataset['Class'].copy(True)
 
     # apply sampling technique if selected to tackling class imbalance
     if sampling_method == 'oversampling':
@@ -76,6 +87,7 @@ def load_dataset(filename="creditcard.csv", dataset_split_method='train-test',
 
     features = dataset.ix[:, dataset.columns != 'Class']
     classes = dataset['Class']
+    
 
     X_train, X_test, y_train, y_test = train_test_split(features, classes, test_size=train_test_ratio, random_state=0)
     dataset_config = {'x-train': X_train, 'y-train': y_train, 'x-test': X_test, 'y-test': y_test}
@@ -93,21 +105,25 @@ def load_dataset(filename="creditcard.csv", dataset_split_method='train-test',
     return dataset_config, 'train-test'
 
 
-def accaracy_measures(model, points, conf_mat=False, roc_curve=False):
+def accaracy_measures(model, points, conf_mat=False, roc_curve=False, pre_recall_curve=False):
     x_plot_area = int(conf_mat) + int(roc_curve) + 1
-    viz.plt.figure()
-
+    #viz.plt.figure()
     # visualization confusion matrix
     if conf_mat:
-        conf_matrix = confusion_matrix(points['y-test'], model.predict(points['x-test']))
+        print len(y_set)
+        conf_matrix = confusion_matrix(y_set, model.predict(x_set))
         viz.plt.subplot(1, x_plot_area ,x_plot_area - 1)
         viz.plot_confusion_matrix(conf_matrix, classes=[0, 1], title='Confusion matrix')
 
     # visualize ROC curve
     if roc_curve:
         viz.plt.subplot(1, x_plot_area, x_plot_area - 2)
-        viz.plot_roc_curve(points['y-test'], model.predict(points['x-test']))
-    viz.plot_recision_recall(points['y-test'], model.predict(points['x-test']))
+        x, y, _ = ROC_Cruve(y_set, model.predict_proba(x_set)[:, 1])
+        viz.plt.plot(x, y)
+        #viz.plot_roc_curve(points['y-test'], model.predict(points['x-test']))
+    
+    if pre_recall_curve:
+        viz.plot_recision_recall(points['y-test'], model.predict(points['x-test']))
     viz.plt.show()
 
 
@@ -118,12 +134,10 @@ def train_on_data(datainput, split_method, model=LogisticRegression(C=0.1, penal
 
     # TODO: use multiple modelds for training and evaluation
 
-    print "training of ", model
-
     # when train-split validation method is applied
     if split_method == "train-test":
         model.fit(datainput['x-train'], datainput['y-train'])
-        accaracy_measures(model, datainput, conf_mat=True)
+        accaracy_measures(model, datainput, conf_mat=True, roc_curve=True)
 
     # if kfolds is applied
     elif split_method == 'kfolds':
@@ -145,12 +159,12 @@ def train_on_data(datainput, split_method, model=LogisticRegression(C=0.1, penal
         print 'Mean recall score ', np.mean(recall_score_list)
         print "\n"
         
-        accaracy_measures(model, datainput)
+        accaracy_measures(model, datainput, conf_mat=True, roc_curve=True)
 
 
 if __name__ == "__main__":
     
     train_on_data(
-        *load_dataset(dataset_split_method='kfolds', sampling_method=None, train_test_ratio=0.3),
-        model=RandomForestClassifier(n_estimators=2, n_jobs=-1)
+        *load_dataset(dataset_split_method='kfolds', sampling_method="oversampling", train_test_ratio=0.3),
+       model=GradientBoostingClassifier(n_estimators=100)
     )
